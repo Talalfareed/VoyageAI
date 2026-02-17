@@ -1,0 +1,14 @@
+{
+  "name": "VoyageAI - Premium Travel Planner",
+  "short_name": "VoyageAI",
+  "description": "An intelligent travel itinerary generator that crafts personalized day-by-day plans based on your preferences using advanced AI.",
+  "version": "1.0.0",
+  "display": "standalone",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "categories": [
+    "travel",
+    "productivity"
+  ]
+}
