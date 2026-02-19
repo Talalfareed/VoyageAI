@@ -2,12 +2,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TripPreferences, Itinerary, DayPlan } from "./types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAI = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("Gemini API Key is missing. Please set the API_KEY environment variable in Vercel.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 export const generateAIImage = async (searchTerm: string, isPortrait: boolean = false): Promise<string> => {
-  const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = getAI();
   
-  const response = await genAI.models.generateContent({
+  const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
     contents: {
       parts: [
@@ -18,18 +24,16 @@ export const generateAIImage = async (searchTerm: string, isPortrait: boolean = 
     },
     config: {
       imageConfig: {
-        aspectRatio: isPortrait ? "9:16" : "16:9",
+        aspectRatio: isPortrait ? "9:16" : "1:1",
       },
     },
   });
 
-  if (response.candidates?.[0]?.content?.parts) {
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
-    }
+  const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+  if (part?.inlineData?.data) {
+    return `data:image/png;base64,${part.inlineData.data}`;
   }
+  
   throw new Error("No image data found in response");
 };
 
@@ -91,45 +95,53 @@ const itinerarySchema = {
 };
 
 export const generateItinerary = async (prefs: TripPreferences): Promise<Itinerary> => {
-  const prompt = `Create a highly detailed, visually descriptive travel itinerary for ${prefs.destination} for ${prefs.days} days.
-  Themes: ${prefs.themes.join(', ')}.
-  Pace: ${prefs.pace}.
-  Daily travel radius: ${prefs.radius}km.
-  Extra requirements: ${prefs.constraints.join(', ')}.
-  
-  CRITICAL: For every activity and food recommendation, provide a 'googleMapsUrl' (search link like https://www.google.com/maps/search/?api=1&query=LocationName).
-  Provide a specific 'imageSearchTerm' (2-4 words) for AI image generation.
-  
-  Ensure activities are logically grouped by geography.`;
+  const ai = getAI();
+  const prompt = `Generate a highly personalized ${prefs.days}-day travel itinerary for ${prefs.destination}.
+    Radius: ${prefs.radius}km.
+    Themes: ${prefs.themes.join(', ')}.
+    Pace: ${prefs.pace}.
+    Constraints: ${prefs.constraints.join(', ')}.
+    Budget Optimized: ${prefs.budgetAware}.
+    
+    Ensure geographic efficiency (group nearby locations). Provide descriptive and exciting search terms for images.`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
-      responseSchema: itinerarySchema
-    }
+      responseSchema: itinerarySchema,
+    },
   });
 
-  return JSON.parse(response.text);
+  const text = response.text;
+  if (!text) {
+    throw new Error("The AI returned an empty response.");
+  }
+
+  return JSON.parse(text) as Itinerary;
 };
 
-export const regenerateDayPlan = async (prefs: TripPreferences, dayNumber: number, existingItinerary: Itinerary): Promise<DayPlan> => {
-  const prompt = `Regenerate Day ${dayNumber} for the itinerary "${existingItinerary.itineraryName}" in ${prefs.destination}.
-  Preferences: Pace: ${prefs.pace}, Themes: ${prefs.themes.join(', ')}.
-  Keep it different from the previous version of this day if possible, but maintain the flow with surrounding days.
-  Surrounding context: This is day ${dayNumber} of ${prefs.days}.
-  
-  Return ONLY the JSON for this specific day according to the day object schema.`;
+export const regenerateDayPlan = async (prefs: TripPreferences, dayNumber: number, currentItinerary: Itinerary): Promise<DayPlan> => {
+  const ai = getAI();
+  const prompt = `Regenerate ONLY Day ${dayNumber} for the trip to ${prefs.destination}. 
+    Previous Context: ${currentItinerary.itineraryName}.
+    Themes: ${prefs.themes.join(', ')}.
+    Keep the flow natural with the other days but provide fresh activities.`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
-      responseSchema: (itinerarySchema.properties.days as any).items
-    }
+      responseSchema: (itinerarySchema.properties.days.items) as any,
+    },
   });
 
-  return JSON.parse(response.text);
+  const text = response.text;
+  if (!text) {
+    throw new Error("The AI returned an empty response.");
+  }
+
+  return JSON.parse(text) as DayPlan;
 };
