@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { TripPreferences, Itinerary, DayPlan } from "./types";
 
@@ -115,7 +114,7 @@ export const generateItinerary = async (prefs: TripPreferences): Promise<Itinera
   });
 
   const text = response.text;
-  if (!text) {
+  if (typeof text !== 'string' || !text) {
     throw new Error("The AI returned an empty response.");
   }
 
@@ -139,7 +138,7 @@ export const regenerateDayPlan = async (prefs: TripPreferences, dayNumber: numbe
   });
 
   const text = response.text;
-  if (!text) {
+  if (typeof text !== 'string' || !text) {
     throw new Error("The AI returned an empty response.");
   }
 
