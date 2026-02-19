@@ -5,7 +5,7 @@ import { TripPreferences, Itinerary, DayPlan } from "./types";
 const getAI = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("Gemini API Key is missing. Please set the API_KEY environment variable in Vercel.");
+    throw new Error("Gemini API Key is missing. Please set the API_KEY or GEMINI_API_KEY environment variable in Vercel.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -96,7 +96,7 @@ const itinerarySchema = {
 
 export const generateItinerary = async (prefs: TripPreferences): Promise<Itinerary> => {
   const ai = getAI();
-  const prompt = `Generate a highly personalized ${prefs.days}-day travel itinerary for ${prefs.destination}.
+  const promptText = `Generate a highly personalized ${prefs.days}-day travel itinerary for ${prefs.destination}.
     Radius: ${prefs.radius}km.
     Themes: ${prefs.themes.join(', ')}.
     Pace: ${prefs.pace}.
@@ -107,7 +107,7 @@ export const generateItinerary = async (prefs: TripPreferences): Promise<Itinera
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: prompt,
+    contents: promptText,
     config: {
       responseMimeType: "application/json",
       responseSchema: itinerarySchema,
@@ -124,14 +124,14 @@ export const generateItinerary = async (prefs: TripPreferences): Promise<Itinera
 
 export const regenerateDayPlan = async (prefs: TripPreferences, dayNumber: number, currentItinerary: Itinerary): Promise<DayPlan> => {
   const ai = getAI();
-  const prompt = `Regenerate ONLY Day ${dayNumber} for the trip to ${prefs.destination}. 
+  const promptText = `Regenerate ONLY Day ${dayNumber} for the trip to ${prefs.destination}. 
     Previous Context: ${currentItinerary.itineraryName}.
     Themes: ${prefs.themes.join(', ')}.
     Keep the flow natural with the other days but provide fresh activities.`;
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: prompt,
+    contents: promptText,
     config: {
       responseMimeType: "application/json",
       responseSchema: (itinerarySchema.properties.days.items) as any,
